@@ -1,0 +1,23 @@
+[{
+    "id": "11111111-1111-1111-1111-111111111111",
+    "type": "Feature",
+    "feature_type": "relationship",
+    "geometry": null,
+    "properties": {
+      "category": "traversal",
+      "direction": "undirected",
+      "hours": null,
+      "origin": {
+        "id": "UNIT-ID-room...",
+        "type": "unit"
+      },
+      "intermediary": [{
+        "id": "OPENING-ID",
+        "type": "opening"
+      }],
+      "destination": {
+        "id": "UNIT-ID-walkway...",
+        "type": "unit"
+      }
+    }
+  }]

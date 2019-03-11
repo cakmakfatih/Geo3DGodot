@@ -1,0 +1,6 @@
+/Users/captain/Projects/Geo3DGodot/.mono/temp/bin/Tools/Geo3DGodot.dll
+/Users/captain/Projects/Geo3DGodot/.mono/temp/bin/Tools/Geo3DGodot.pdb
+/Users/captain/Projects/Geo3DGodot/.mono/temp/obj/Tools/Geo3DGodot.csprojAssemblyReference.cache
+/Users/captain/Projects/Geo3DGodot/.mono/temp/obj/Tools/Geo3DGodot.csproj.CoreCompileInputs.cache
+/Users/captain/Projects/Geo3DGodot/.mono/temp/obj/Tools/Geo3DGodot.dll
+/Users/captain/Projects/Geo3DGodot/.mono/temp/obj/Tools/Geo3DGodot.pdb
