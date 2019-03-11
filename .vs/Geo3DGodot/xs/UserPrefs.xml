@@ -1,15 +1,17 @@
 ﻿<Properties>
   <MonoDevelop.Ide.Workbench ActiveDocument="Scripts/Editor.cs">
     <Files>
-      <File FileName="Scripts/Editor.cs" Line="44" Column="13" />
-      <File FileName="Scripts/GeoRenderer.cs" Line="66" Column="20" />
+      <File FileName="Scripts/Editor.cs" Line="57" Column="35" />
+      <File FileName="Scripts/GeoRenderer.cs" Line="56" Column="50" />
     </Files>
     <Pads>
       <Pad Id="ProjectPad">
         <State name="__root__">
           <Node name="Geo3DGodot" expanded="True">
             <Node name="Geo3DGodot" expanded="True">
-              <Node name="Scripts" expanded="True" />
+              <Node name="Scripts" expanded="True">
+                <Node name="Editor.cs" selected="True" />
+              </Node>
             </Node>
           </Node>
         </State>

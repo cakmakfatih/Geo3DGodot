@@ -13,7 +13,7 @@ public abstract class GeoRenderer
             vertices[i].x = poly[i].x;
             vertices[i].y = poly[i].y;
             vertices[i].z = frontDistance;
-            vertices[i+poly.Length].x = poly[i].x;
+            vertices[i+poly.Length].x = poly[i].x; 
             vertices[i+poly.Length].y = poly[i].y;
             vertices[i+poly.Length].z = 0;    
         }
@@ -52,7 +52,7 @@ public abstract class GeoRenderer
         {
             surfTool.AddVertex(vertices[triangles[w]]);
         }
-
+        
         for (int w = triangles.Length - 1; w > -1; w--)
         {
             surfTool.AddVertex(vertices[triangles[w]]);
@@ -60,10 +60,10 @@ public abstract class GeoRenderer
 
         ArrayMesh mesh = new ArrayMesh();
 
-        surfTool.GenerateNormals();
         surfTool.Index();
+        surfTool.GenerateNormals();
         surfTool.SetMaterial(material);
-
+        
         surfTool.Commit(mesh);
 
         return mesh;

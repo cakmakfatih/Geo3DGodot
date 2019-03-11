@@ -50,4 +50,11 @@ directional_shadow_depth_range = 0
 directional_shadow_max_distance = 200.0
 _sections_unfolded = [ "Light", "Shadow" ]
 
+[node name="HTTPRequest" type="HTTPRequest" parent="." index="2"]
+
+download_file = ""
+use_threads = false
+body_size_limit = -1
+max_redirects = 8
+
 
