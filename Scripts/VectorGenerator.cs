@@ -3,7 +3,7 @@ using Godot;
 public class VectorGenerator
 {
     private readonly float[] projectCoordinates;
-    private readonly float scaler = 1.7f;
+    private readonly float scaler = 2.3f;
     private readonly float EARTH_RADIUS = 6371;
 
     private Vector3 offset;
