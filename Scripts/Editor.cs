@@ -36,6 +36,7 @@ public class Editor : Node
         l.Features.ForEach((Feature f) => levels.Add(f.Properties["LEVEL_ID"].ToString(), f.Properties));
         
         FeatureCollection venue = fileReader.ReadJSON("res://Resources/Venue.json");
+        FeatureCollection walls = fileReader.ReadJSON("res://Resources/PolygonWalls.json");
 
         IPosition startPosition = (JsonConvert.DeserializeObject<Point>(venue.Features[0].Properties["DISPLAY_XY"].ToString())).Coordinates as IPosition;
 
@@ -43,8 +44,31 @@ public class Editor : Node
 
         FeatureCollection units = fileReader.ReadJSON("res://Resources/Units.json");
 
+        //MakeRequest("res://Resources/PolygonWalls.json");
+
+        ProcessFeatureCollection(venue, "Venue");
         ProcessFeatureCollection(units);
+        //ProcessFeatureCollection(walls, "Walls");
     }
+    
+    /* 
+    private void _HTTPRequestComplete(int result, int responseCode, string[] headers, byte[] body)
+    {
+        string text = System.Text.Encoding.UTF8.GetString(body);
+        
+        FeatureCollection walls = fileReader.ToFeatureCollection(text);
+
+        ProcessFeatureCollection(walls);
+    }
+
+    private void MakeRequest(string path)
+    {
+        var headers = new string[] {"Content-Type: application/json"};
+        object t = fileReader.GetText(path);
+
+        httpRequestNode.Request("https://murmuring-beach-63804.herokuapp.com/multipolygon-to-wall", headers, false, HTTPClient.Method.Post, JSON.Print(t));
+    }
+    */
 
     private List<FeatureObservable> ProcessGeometry(IGeometryObject geometry, float height = 0.04f)
     {
@@ -70,16 +94,46 @@ public class Editor : Node
         return poList;
     }
 
-    private void ProcessFeatureCollection(FeatureCollection featureCollection)
+    private MeshInstance ExtrudeMesh(Vector2[] poly, float height, Material material)
+    {
+        MeshInstance meshInstance = new MeshInstance();
+        ArrayMesh mesh = GeoRenderer.CreateExtrudeMesh(poly, material, -height, PrimitiveMesh.PrimitiveType.Triangles);
+        mesh.GenerateTriangleMesh();
+
+        meshInstance.SetMesh(mesh);
+        meshInstance.SetRotationDegrees(new Vector3(90, 0, 90));
+
+        return meshInstance;
+    }
+
+    private void ProcessFeatureCollection(FeatureCollection featureCollection, string type = "Units", float height = 0.2f)
     {
         featureCollection.Features.ForEach(
             delegate (Feature feature) 
             {
-                int ordinal = Int16.Parse(levels[feature.Properties["LEVEL_ID"].ToString()]["ORDINAL"].ToString());
+                int ordinal;
+
+                if(type == "Venue")
+                {
+                    ordinal = 0;
+                }
+                else
+                {
+                    ordinal = Int16.Parse(levels[feature.Properties["LEVEL_ID"].ToString()]["ORDINAL"].ToString());
+                }
                 
                 if(ordinal == 0)
                 {
-                    string category = feature.Properties["CATEGORY"].ToString();
+                    string category;
+                    
+                    if(type == "Venue" || type == "Walls")
+                    {
+                        category = type;
+                    }
+                    else
+                    {
+                        category = feature.Properties["CATEGORY"].ToString();
+                    }
 
                     if(!materials.ContainsKey(category))
                     {
@@ -95,21 +149,35 @@ public class Editor : Node
                         materials[category] = material;
                     }
 
-                    float height = 0.5f;
-
-                    if(category == "Walkway")
+                    if(category == "Venue")
+                    {
+                        height = 0.20f;
+                    }
+                    else if(category == "Walkway")
                     {
                         height = 0.25f;
+                    }
+                    else if(category == "Room")
+                    {
+                        height = 1.15f;
+                    }
+                    else if(category == "Walls")
+                    {
+                        height = 1.19f;
+                    }
+                    else
+                    {
+                        height = 0.27f;
                     }
 
                     List<FeatureObservable> fos = ProcessGeometry(feature.Geometry, height);
 
                     foreach(FeatureObservable f in fos)
                     {
-                        f.MeshList.ForEach(delegate (MeshInstance m)
+                        f.EdittedPolygons.ForEach(delegate (Vector2[] polygon)
                             {
-                                m.SetMaterialOverride(materials[category]);
-                                AddChild(m);
+                                MeshInstance mesh = ExtrudeMesh(polygon, height, materials[category]);
+                                AddChild(mesh);
                             }
                         );
                     }
