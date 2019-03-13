@@ -51,6 +51,10 @@
       <HintPath>$(ProjectDir)/.mono/assemblies/LitJson.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="GeoJSON.Net">
+      <HintPath>$(ProjectDir)/.mono/assemblies/GeoJSON.Net.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />

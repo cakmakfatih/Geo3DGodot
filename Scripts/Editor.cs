@@ -134,7 +134,7 @@ public class Editor : Node
                 return new Vector2(pC.x, pC.z);
             }).ToArray();
 
-            if(feature.properties["CATEGORY"].ToString() == "Room" && ordinal == 0)
+            if(feature.properties["CATEGORY"].ToString() == "Room" && ordinal == -2)
             {
                 float height = -1.04f;
                 
@@ -183,7 +183,7 @@ public class Editor : Node
             }
             
 
-            if(ordinal == 0 || type == "VENUE")
+            if(ordinal == -2 || type == "VENUE")
             {
                 float height = -0.1f;
                 if(feature.properties["CATEGORY"].ToString() == "Room")
