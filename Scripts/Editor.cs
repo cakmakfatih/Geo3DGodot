@@ -1,258 +1,120 @@
 using Godot;
 using System;
 using System.Collections.Generic;
-using LitJson;
 using System.Net;
 using System.Linq;
+using GeoJSON.Net.Feature;
+using GeoJSON.Net.Geometry;
+using Newtonsoft.Json;
 
 public class Editor : Node
 {
     private FileReader fileReader;
     private VectorGenerator vectorGenerator;
-
     private Random random;
-    private System.Collections.Generic.Dictionary<string, IDictionary<string, JsonData>> levels = new System.Collections.Generic.Dictionary<string, IDictionary<string, JsonData>>();
     private System.Collections.Generic.Dictionary<string, SpatialMaterial> materials;
     private HTTPRequest httpRequestNode;
-
-    private Shader wallShader = (Shader) ResourceLoader.Load("res://Shaders/wall.shader");
     private SpatialMaterial wallMaterial;
+
+    private System.Collections.Generic.Dictionary<string, IDictionary<string, object>> levels;
 
     public override void _Ready()
     {
         wallMaterial = new SpatialMaterial();
         wallMaterial.SetAlbedo(new Color(0.5f, 0.5f, 0.5f));
+        
         httpRequestNode = (HTTPRequest) GetNode("HTTPRequest");
-
         httpRequestNode.Connect("request_completed", this, "_HTTPRequestComplete");
 
         materials = new System.Collections.Generic.Dictionary<string, SpatialMaterial>();
         random = new Random();
         fileReader = new FileReader();
 
+        FeatureCollection l = fileReader.ReadJSON("res://Resources/Levels.json");
+
+        levels = new System.Collections.Generic.Dictionary<string, IDictionary<string, object>>();
+        l.Features.ForEach((Feature f) => levels.Add(f.Properties["LEVEL_ID"].ToString(), f.Properties));
+        
         FeatureCollection venue = fileReader.ReadJSON("res://Resources/Venue.json");
 
-        float lat = Convert.ToSingle((double) venue.features[0].properties["DISPLAY_XY"]["coordinates"][1]);
-        float lon = Convert.ToSingle((double) venue.features[0].properties["DISPLAY_XY"]["coordinates"][0]);
+        IPosition startPosition = (JsonConvert.DeserializeObject<Point>(venue.Features[0].Properties["DISPLAY_XY"].ToString())).Coordinates as IPosition;
 
-        vectorGenerator = new VectorGenerator(new float[] { lat, lon });
+        vectorGenerator = new VectorGenerator(startPosition);
 
         FeatureCollection units = fileReader.ReadJSON("res://Resources/Units.json");
-        FeatureCollection levelsF = fileReader.ReadJSON("res://Resources/Levels.json");
 
-        FeatureCollection mpCol = fileReader.ReadJSON("res://Resources/MultiPolygonWalls.json");
-        FeaCol feaCol = fileReader.ReadPolygon("res://Resources/PolygonWalls.json");
-
-        SetLevels(levelsF);
-
-        ProcessMpWall(mpCol);
-        ProcessPolygon(feaCol);
-        //MakeRequest(units);
-
-        ProcessFeatureCollection(venue, "VENUE");
-        ProcessFeatureCollection(units, "UNITS");
+        ProcessFeatureCollection(units);
     }
 
-    private List<double[]> EditPoly(List<double[]> poly)
+    private List<FeatureObservable> ProcessGeometry(IGeometryObject geometry, float height = 0.04f)
     {
-        if(poly[poly.Count() - 1][0] == poly[0][0])
+        List<FeatureObservable> poList = new List<FeatureObservable>();
+
+        if (geometry.Type.ToString() == "MultiPolygon")
         {
-            poly.RemoveAt(poly.Count() - 1);
-            return EditPoly(poly);
+            MultiPolygon multiPolygon = geometry as MultiPolygon;
+            poList.Add(new FeatureObservable(multiPolygon, height, vectorGenerator));
+            return poList;
+        }
+        else if (geometry.Type.ToString() == "Polygon")
+        {
+            Polygon polygon = geometry as Polygon;
+            poList.Add(new FeatureObservable(polygon, height, vectorGenerator));
+            return poList;
+        }
+        else if (geometry.Type.ToString() == "LineString")
+        {
+            poList.Add(new FeatureObservable(geometry as LineString, height, vectorGenerator));
         }
 
-        return poly;
+        return poList;
     }
 
-    private void ProcessMpWall(FeatureCollection data)
+    private void ProcessFeatureCollection(FeatureCollection featureCollection)
     {
-        FeaCol feaCol = new FeaCol();
-        feaCol.features = new List<Fea>();
-        
-        foreach(Feature feature in data.features)
-        { 
-            foreach(List<List<double[]>> l in feature.geometry.coordinates)
+        featureCollection.Features.ForEach(
+            delegate (Feature feature) 
             {
-                List<List<double[]>> coords = new List<List<double[]>>();
-
-                foreach(List<double[]> b in l)
-                {
-                    coords.Add(b);
-                }
-
-                Fea fea = new Fea();
-                fea.geometry = new Geo {
-                    type = "Polygon",
-                    coordinates = coords
-                };
-                fea.properties = feature.properties;
-
-                fea.type = "Feature";
-
-                feaCol.features.Add(fea);
-            }
-
-            
-        }
-
-        ProcessPolygon(feaCol);
-    }
-
-    
-    private void ProcessPolygon(FeaCol data)
-    {
-        PrimitiveMesh.PrimitiveType[] primitiveTypes = new PrimitiveMesh.PrimitiveType[] { PrimitiveMesh.PrimitiveType.Triangles, PrimitiveMesh.PrimitiveType.Triangles };
-
-        foreach(Fea feature in data.features)
-        {
-            int ordinal;
-            
-            if(feature.properties.ContainsKey("LEVEL_ID"))
-            {
-                string levelId = feature.properties["LEVEL_ID"].ToString();
-                ordinal = (int)levels[levelId]["ORDINAL"];
-            }
-            else 
-            {
-                ordinal = 0;
-            }
-
-            List<double[]> coords = new List<double[]>();
-    
-            foreach(List<double[]> l in feature.geometry.coordinates)
-            {
-                for(int b = 0; b < l.Count; b++)
-                {
-                    coords.Add(l[b]);
-                }
-            }
-
-            Vector2[] poly = coords.ConvertAll<Vector2>(delegate (double[] k){
-                var p = new float[] { (float) k[1], (float) k[0] };
-                var pC = vectorGenerator.FromLL(p);
-
-                return new Vector2(pC.x, pC.z);
-            }).ToArray();
-
-            if(feature.properties["CATEGORY"].ToString() == "Room" && ordinal == -2)
-            {
-                float height = -1.04f;
+                int ordinal = Int16.Parse(levels[feature.Properties["LEVEL_ID"].ToString()]["ORDINAL"].ToString());
                 
-                MeshInstance meshInstance = new MeshInstance();
-                ArrayMesh mesh = GeoRenderer.CreateExtrudeMesh(poly, wallMaterial, height, PrimitiveMesh.PrimitiveType.Triangles);
-                mesh.GenerateTriangleMesh();
-
-                meshInstance.SetMesh(mesh);
-                
-                meshInstance.SetRotationDegrees(new Vector3(90, 0, 90));
-
-                AddChild(meshInstance);
-            }
-        }
-    }
-
-    private void _HTTPRequestComplete(int result, int responseCode, string[] headers, byte[] body)
-    {
-        string text = System.Text.Encoding.UTF8.GetString(body);
-        JSONParseResult r = JSON.Parse(text);
-        GD.Print((r.GetResult() as Dictionary)["type"]);
-    }
-
-    private void MakeRequest(FeatureCollection featureCollection)
-    {
-        var headers = new string[] {"Content-Type: application/json"};
-        object t = fileReader.GetText("res://Resources/Units.json");
-
-        httpRequestNode.Request("https://murmuring-beach-63804.herokuapp.com/multipolygon-to-wall", headers, false, HTTPClient.Method.Post, JSON.Print(t));
-    }
-
-    public void ProcessFeatureCollection(FeatureCollection data, string type = "UNIT", float h = -0.1f)
-    {
-        foreach(Feature feature in data.features)
-        {
-            int ordinal;
-
-            if(feature.properties.ContainsKey("LEVEL_ID"))
-            {
-                string levelId = feature.properties["LEVEL_ID"].ToString();
-                ordinal = (int)levels[levelId]["ORDINAL"];
-            }
-            else 
-            {
-                ordinal = 0;
-            }
-            
-
-            if(ordinal == -2 || type == "VENUE")
-            {
-                float height = -0.1f;
-                if(feature.properties["CATEGORY"].ToString() == "Room")
+                if(ordinal == 0)
                 {
-                    height = -0.06f;
-                }
-                if(feature.properties["CATEGORY"].ToString() == "Walkway")
-                {
-                    height = -0.05f;
-                }
-                if(type == "VENUE")
-                {
-                    height = -0.04f;
-                }
+                    string category = feature.Properties["CATEGORY"].ToString();
 
-                if(h != -0.1f)
-                {
-                    height = h;
-                }
-                
-                if (feature.properties.ContainsKey("CATEGORY"))
-                {
-                    if (!materials.ContainsKey(feature.properties["CATEGORY"].ToString()))
+                    if(!materials.ContainsKey(category))
                     {
                         Color color = new Color(
-                                (float)random.NextDouble(),
-                                (float)random.NextDouble(),
-                                (float)random.NextDouble()
+                            Convert.ToSingle(random.NextDouble()),
+                            Convert.ToSingle(random.NextDouble()),
+                            Convert.ToSingle(random.NextDouble())
                         );
+
                         SpatialMaterial material = new SpatialMaterial();
                         material.SetAlbedo(color);
-                        materials.Add(feature.properties["CATEGORY"].ToString(), material);
+
+                        materials[category] = material;
                     }
-                }
-                
-                foreach (List<List<double[]>> i in feature.geometry.coordinates)
-                {
-                    foreach (List<double[]> points in i)
+
+                    float height = 0.5f;
+
+                    if(category == "Walkway")
                     {
-                        Vector2[] poly = new Vector2[points.Count + 1];
+                        height = 0.25f;
+                    }
 
-                        for (int k = 0; k < points.Count + 1; k++)
-                        {
-                            var p = new float[] { (float) points[k%points.Count][1], (float) points[k%points.Count][0] };
-                            var pC = vectorGenerator.FromLL(p);
+                    List<FeatureObservable> fos = ProcessGeometry(feature.Geometry, height);
 
-                            poly[k] = new Vector2(pC.x, pC.z);
-                        }
-
-                        MeshInstance meshInstance = new MeshInstance();
-                        ArrayMesh mesh = GeoRenderer.CreateExtrudeMesh(poly, materials[feature.properties["CATEGORY"].ToString()], height);
-                        mesh.GenerateTriangleMesh();
-
-                        meshInstance.SetMesh(mesh);
-
-                        meshInstance.SetRotationDegrees(new Vector3(90, 0, 90));
-
-                        AddChild(meshInstance);
+                    foreach(FeatureObservable f in fos)
+                    {
+                        f.MeshList.ForEach(delegate (MeshInstance m)
+                            {
+                                m.SetMaterialOverride(materials[category]);
+                                AddChild(m);
+                            }
+                        );
                     }
                 }
             }
-        }
-    }
-
-    private void SetLevels(FeatureCollection l)
-    {
-        foreach(Feature f in l.features)
-        {
-            levels.Add(f.properties["LEVEL_ID"].ToString(), f.properties);
-        }
+        );
     }
 }

@@ -3,7 +3,7 @@ using System;
 
 public abstract class GeoRenderer
 {
-    public static ArrayMesh CreateExtrudeMesh(Vector2[] poly, Material material, float frontDistance = -1, PrimitiveMesh.PrimitiveType primitiveType = PrimitiveMesh.PrimitiveType.Triangles)
+    public static ArrayMesh CreateExtrudeMesh(Vector2[] poly, float frontDistance = -1, PrimitiveMesh.PrimitiveType primitiveType = PrimitiveMesh.PrimitiveType.Triangles)
     {
         int[] tris = Godot.Geometry.TriangulatePolygon(poly);
         Vector3[] vertices = new Vector3[poly.Length*2];
@@ -62,7 +62,6 @@ public abstract class GeoRenderer
 
         surfTool.Index();
         surfTool.GenerateNormals();
-        surfTool.SetMaterial(material);
         
         surfTool.Commit(mesh);
 
