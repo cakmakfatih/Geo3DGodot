@@ -59,7 +59,7 @@ public abstract class GeoRenderer
         }
 
         ArrayMesh mesh = new ArrayMesh();
-
+    
         surfTool.SetMaterial(material);
         surfTool.Index();
         surfTool.GenerateNormals();
@@ -68,5 +68,4 @@ public abstract class GeoRenderer
 
         return mesh;
     }
-
 }

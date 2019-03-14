@@ -13,8 +13,7 @@ public class FileReader
         file.Open(path, 1);
         string text = file.GetAsText();
         FeatureCollection featureCollection = JsonConvert.DeserializeObject<FeatureCollection>(text);
-        file.Close();
-
+        
         return featureCollection;
     }
 
@@ -28,7 +27,6 @@ public class FileReader
         File file = new File();
         file.Open(path, 1);
         string text = file.GetAsText();
-        file.Close();
 
         return text;
     }

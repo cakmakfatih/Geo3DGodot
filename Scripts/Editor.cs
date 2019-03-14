@@ -7,7 +7,7 @@ using GeoJSON.Net.Feature;
 using GeoJSON.Net.Geometry;
 using Newtonsoft.Json;
 
-public class Editor : Node
+public class Editor : Spatial
 {
     private FileReader fileReader;
     private VectorGenerator vectorGenerator;
@@ -37,6 +37,7 @@ public class Editor : Node
         
         FeatureCollection venue = fileReader.ReadJSON("res://Resources/Venue.json");
         FeatureCollection walls = fileReader.ReadJSON("res://Resources/PolygonWalls.json");
+        FeatureCollection mWalls = fileReader.ReadJSON("res://Resources/MultiPolygonWalls.json");
 
         IPosition startPosition = (JsonConvert.DeserializeObject<Point>(venue.Features[0].Properties["DISPLAY_XY"].ToString())).Coordinates as IPosition;
 
@@ -44,18 +45,17 @@ public class Editor : Node
 
         FeatureCollection units = fileReader.ReadJSON("res://Resources/Units.json");
 
-        //MakeRequest("res://Resources/PolygonWalls.json");
+       // MakeRequest("res://Resources/PolygonWalls.json");
 
         ProcessFeatureCollection(venue, "Venue");
-        ProcessFeatureCollection(units);
-        //ProcessFeatureCollection(walls, "Walls");
+        ProcessFeatureCollection(units, "Units");
+        ProcessFeatureCollection(walls, "Walls");
+        ProcessFeatureCollection(mWalls, "Walls");
     }
     
-    /* 
     private void _HTTPRequestComplete(int result, int responseCode, string[] headers, byte[] body)
     {
         string text = System.Text.Encoding.UTF8.GetString(body);
-        
         FeatureCollection walls = fileReader.ToFeatureCollection(text);
 
         ProcessFeatureCollection(walls);
@@ -68,7 +68,6 @@ public class Editor : Node
 
         httpRequestNode.Request("https://murmuring-beach-63804.herokuapp.com/multipolygon-to-wall", headers, false, HTTPClient.Method.Post, JSON.Print(t));
     }
-    */
 
     private List<FeatureObservable> ProcessGeometry(IGeometryObject geometry, float height = 0.04f)
     {
@@ -174,12 +173,35 @@ public class Editor : Node
 
                     foreach(FeatureObservable f in fos)
                     {
-                        f.EdittedPolygons.ForEach(delegate (Vector2[] polygon)
-                            {
-                                MeshInstance mesh = ExtrudeMesh(polygon, height, materials[category]);
-                                AddChild(mesh);
-                            }
-                        );
+                        if(type == "Walls")
+                        {
+                            
+                            List<Vector2> poly = new List<Vector2>();
+
+                            f.EdittedPolygons.ForEach(
+                                delegate (Vector2[] polygon)
+                                {
+                                    
+                                    for(int i = 0; i < polygon.Length - 1; i++)
+                                    {
+                                        poly.Add(polygon[i]);
+                                    }
+                                }
+                            );
+                            
+                            MeshInstance mesh = ExtrudeMesh(poly.ToArray(), height, materials[category]);
+                            AddChild(mesh);
+                        }
+                        else
+                        {
+                            f.EdittedPolygons.ForEach(
+                                delegate (Vector2[] polygon)
+                                {
+                                    MeshInstance mesh = ExtrudeMesh(polygon, height, materials[category]);
+                                    AddChild(mesh);
+                                }
+                            );
+                        }
                     }
                 }
             }
