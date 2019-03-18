@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=2]
+[gd_scene load_steps=3 format=2]
 
 [ext_resource path="res://Scripts/Editor.cs" type="Script" id=1]
+[ext_resource path="res://Scripts/Camera.cs" type="Script" id=2]
 
 [node name="Editor" type="Spatial"]
 script = ExtResource( 1 )
@@ -9,6 +10,7 @@ script = ExtResource( 1 )
 transform = Transform( 1, 0, 0, 0, 0.660457, 0.750863, 0, -0.750863, 0.660457, -0.0688338, 10.0394, 12.6401 )
 current = true
 far = 200.0
+script = ExtResource( 2 )
 
 [node name="DirectionalLight" type="DirectionalLight" parent="."]
 transform = Transform( 0.757617, -0.530829, -0.379786, 0.62774, 0.433227, 0.646728, -0.178768, -0.728379, 0.661442, -4.28337, 4.53014, 2.5938 )

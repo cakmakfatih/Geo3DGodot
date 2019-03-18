@@ -45,12 +45,13 @@ public class Editor : Spatial
 
         FeatureCollection units = fileReader.ReadJSON("res://Resources/Units.json");
 
-       // MakeRequest("res://Resources/PolygonWalls.json");
+        //MakeRequest("res://Resources/PolygonWalls.json");
 
         ProcessFeatureCollection(venue, "Venue");
         ProcessFeatureCollection(units, "Units");
         ProcessFeatureCollection(walls, "Walls");
-        ProcessFeatureCollection(mWalls, "Walls");
+        //ProcessFeatureCollection(mWalls, "Units");
+        //ProcessFeatureCollection(mWalls, "Walls");
     }
     
     private void _HTTPRequestComplete(int result, int responseCode, string[] headers, byte[] body)
@@ -58,7 +59,7 @@ public class Editor : Spatial
         string text = System.Text.Encoding.UTF8.GetString(body);
         FeatureCollection walls = fileReader.ToFeatureCollection(text);
 
-        ProcessFeatureCollection(walls);
+        ProcessFeatureCollection(walls, "Walls");
     }
 
     private void MakeRequest(string path)
@@ -93,16 +94,23 @@ public class Editor : Spatial
         return poList;
     }
 
-    private MeshInstance ExtrudeMesh(Vector2[] poly, float height, Material material)
+    private MeshInstance ExtrudeMesh(Vector2[] poly, float height, Material material, PrimitiveMesh.PrimitiveType primitive = PrimitiveMesh.PrimitiveType.Triangles)
     {
         MeshInstance meshInstance = new MeshInstance();
-        ArrayMesh mesh = GeoRenderer.CreateExtrudeMesh(poly, material, -height, PrimitiveMesh.PrimitiveType.Triangles);
+        ArrayMesh mesh = GeoRenderer.CreateExtrudeMesh(poly, material, -height, primitive);
         mesh.GenerateTriangleMesh();
+
 
         meshInstance.SetMesh(mesh);
         meshInstance.SetRotationDegrees(new Vector3(90, 0, 90));
 
         return meshInstance;
+    }
+
+    private void AddLine(Vector2[] polygon, float height)
+    {
+        
+        
     }
 
     private void ProcessFeatureCollection(FeatureCollection featureCollection, string type = "Units", float height = 0.2f)
@@ -158,7 +166,7 @@ public class Editor : Spatial
                     }
                     else if(category == "Room")
                     {
-                        height = 1.15f;
+                        height = 1.14f;
                     }
                     else if(category == "Walls")
                     {
@@ -168,42 +176,99 @@ public class Editor : Spatial
                     {
                         height = 0.27f;
                     }
-
-                    List<FeatureObservable> fos = ProcessGeometry(feature.Geometry, height);
-
-                    foreach(FeatureObservable f in fos)
+                    
+                    if(type != "Walls")
                     {
-                        if(type == "Walls")
-                        {
-                            
-                            List<Vector2> poly = new List<Vector2>();
-
-                            f.EdittedPolygons.ForEach(
-                                delegate (Vector2[] polygon)
-                                {
-                                    
-                                    for(int i = 0; i < polygon.Length - 1; i++)
-                                    {
-                                        poly.Add(polygon[i]);
-                                    }
-                                }
-                            );
-                            
-                            MeshInstance mesh = ExtrudeMesh(poly.ToArray(), height, materials[category]);
-                            AddChild(mesh);
-                        }
-                        else
+                        List<FeatureObservable> fos = ProcessGeometry(feature.Geometry, height);
+                        foreach(FeatureObservable f in fos)
                         {
                             f.EdittedPolygons.ForEach(
                                 delegate (Vector2[] polygon)
                                 {
-                                    MeshInstance mesh = ExtrudeMesh(polygon, height, materials[category]);
+                                    //MeshInstance mesh = ExtrudeMesh(polygon, height, materials[category], PrimitiveMesh.PrimitiveType.Triangles);
+                                    CSGPolygon mesh = new CSGPolygon();
+                                    mesh.SetPolygon(polygon);
+                                    mesh.SetRotationDegrees(new Vector3(90, 0, 90));
+                                    mesh.SetMaterial(materials[category]);
+                                    mesh.SetDepth(height);
                                     AddChild(mesh);
+
+                                    AddLine(polygon, height);
                                 }
                             );
                         }
                     }
-                }
+                    else
+                    {
+                            List<Vector2[]> polygonList = new List<Vector2[]>();
+
+                            for(int i = 0; i < (feature.Geometry as Polygon).Coordinates.Count; i++)
+                            {
+                                Vector2[] poly = System.Array.ConvertAll((feature.Geometry as Polygon).Coordinates[i].Coordinates.ToArray(), new Converter<IPosition, Vector2>( 
+                                    delegate(IPosition p) 
+                                        {
+                                            Vector3 v = vectorGenerator.FromLL(p);
+                                            
+                                            return new Vector2(v.x, v.z);
+                                        }
+                                    )
+                                );
+
+                                polygonList.Add(poly);
+                            }
+                            if(feature.Properties["CATEGORY"].ToString() == "Room")
+                            {
+                                height = 1.24f;
+
+                                List<Vector2> coords = new List<Vector2>();
+                                List<Vector2> csg1coords = new List<Vector2>();
+                                List<Vector2> csg2coords = new List<Vector2>();
+
+                                CSGPolygon cp1 = new CSGPolygon();
+                                CSGPolygon cp2 = new CSGPolygon();
+
+                                int g = 0;
+                                polygonList.ForEach(delegate (Vector2[] v) {
+                                    foreach(Vector2 vec in v)
+                                    {
+                                        if(g == 0) 
+                                        {
+                                            csg1coords.Add(vec);
+                                        }
+                                        else
+                                        {
+                                            csg2coords.Add(vec);
+                                        }
+                                    }
+                                    g++;
+                                });
+
+                                cp1.SetPolygon(csg1coords.ToArray());
+                                cp2.SetPolygon(csg2coords.ToArray());
+                                
+                                cp2.SetDepth(height);
+                                cp2.SetOperation(CSGShape.OperationEnum.Subtraction);
+                                cp1.SetDepth(height-0.01f);
+
+                                SpatialMaterial material = new SpatialMaterial();
+                                material.SetAlbedo(new Color(0.7f, 0.7f, 0.7f));
+
+                                cp1.SetMaterial(material);
+                                cp2.SetMaterial(material);
+
+                                CSGCombiner csgc = new CSGCombiner();
+
+                                //csgc.SetOperation(CSGShape.OperationEnum.Subtraction);
+
+                                csgc.AddChild(cp1);
+                                csgc.AddChild(cp2);
+
+                                csgc.SetRotationDegrees(new Vector3(90, 0, 90));
+
+                                AddChild(csgc);
+                            }
+                        }
+                    }
             }
         );
     }

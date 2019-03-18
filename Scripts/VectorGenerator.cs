@@ -4,7 +4,7 @@ using GeoJSON.Net.Geometry;
 public class VectorGenerator
 {
     private readonly IPosition projectCoordinates;
-    private readonly float scaler = 1.3f;
+    private readonly float scaler = 1.8f;
     private readonly float EARTH_RADIUS = 6371;
 
     private Vector3 offset;
