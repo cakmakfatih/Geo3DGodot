@@ -24,9 +24,9 @@ public class Camera : Spatial
             InputEventMouseButton e = @event as InputEventMouseButton;
 
             if(e.GetButtonIndex() == (int) ButtonList.WheelUp)
-                Translate(new Vector3(0, 0, -0.1f));  
+                Translate(new Vector3(0, 0, -0.4f));  
             else if(e.GetButtonIndex() == (int) ButtonList.WheelDown)
-                Translate(new Vector3(0, 0, 0.1f));
+                Translate(new Vector3(0, 0, 0.4f));
         }       
     }
 
@@ -67,9 +67,7 @@ public class Camera : Spatial
         }
         if(Input.IsMouseButtonPressed((int) ButtonList.Middle))
         {
-            mousePosition *= sensitivity;
-            yaw = Convert.ToSingle(yaw * smoothness + mousePosition.x * (1.0 - smoothness));
-            pitch = Convert.ToSingle(pitch * smoothness + mousePosition.y * (1.0 - smoothness));
+            mousePosition *= sensitivity/5;
             SetTranslation(new Vector3(Translation.x - mousePosition.x, Translation.y, Translation.z - mousePosition.y));
             mousePosition = new Vector2(0, 0);
         }

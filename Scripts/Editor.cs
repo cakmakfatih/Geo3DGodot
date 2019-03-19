@@ -15,11 +15,16 @@ public class Editor : Spatial
     private System.Collections.Generic.Dictionary<string, SpatialMaterial> materials;
     private HTTPRequest httpRequestNode;
     private SpatialMaterial wallMaterial;
+    private List<VisibilityEnabler> levelNodes;
+
+    private int activeNode;
 
     private System.Collections.Generic.Dictionary<string, IDictionary<string, object>> levels;
 
     public override void _Ready()
     {
+        activeNode = 0;
+        levelNodes = new List<VisibilityEnabler>();
         wallMaterial = new SpatialMaterial();
         wallMaterial.SetAlbedo(new Color(0.5f, 0.5f, 0.5f));
         
@@ -52,6 +57,23 @@ public class Editor : Spatial
         ProcessFeatureCollection(walls, "Walls");
         //ProcessFeatureCollection(mWalls, "Units");
         //ProcessFeatureCollection(mWalls, "Walls");
+
+        SetVisibility();
+    }
+
+    private void SetVisibility()
+    {
+        levelNodes.ForEach(
+            delegate(VisibilityEnabler i)
+            {
+                if(i.IsVisible())
+                {
+                    i.SetVisible(false);
+                }
+            }
+        );
+
+        levelNodes.Find((VisibilityEnabler i) => i.GetName() == activeNode.ToString()).SetVisible(true);
     }
     
     private void _HTTPRequestComplete(int result, int responseCode, string[] headers, byte[] body)
@@ -94,22 +116,8 @@ public class Editor : Spatial
         return poList;
     }
 
-    private MeshInstance ExtrudeMesh(Vector2[] poly, float height, Material material, PrimitiveMesh.PrimitiveType primitive = PrimitiveMesh.PrimitiveType.Triangles)
-    {
-        MeshInstance meshInstance = new MeshInstance();
-        ArrayMesh mesh = GeoRenderer.CreateExtrudeMesh(poly, material, -height, primitive);
-        mesh.GenerateTriangleMesh();
-
-
-        meshInstance.SetMesh(mesh);
-        meshInstance.SetRotationDegrees(new Vector3(90, 0, 90));
-
-        return meshInstance;
-    }
-
     private void AddLine(Vector2[] polygon, float height)
     {
-        
         
     }
 
@@ -129,146 +137,162 @@ public class Editor : Spatial
                     ordinal = Int16.Parse(levels[feature.Properties["LEVEL_ID"].ToString()]["ORDINAL"].ToString());
                 }
                 
-                if(ordinal == 0)
+                string category;
+                
+                if(GetNodeOrNull(ordinal.ToString()) == null)
                 {
-                    string category;
-                    
-                    if(type == "Venue" || type == "Walls")
-                    {
-                        category = type;
-                    }
-                    else
-                    {
-                        category = feature.Properties["CATEGORY"].ToString();
-                    }
+                    VisibilityEnabler node = new VisibilityEnabler();
+                    node.SetName(ordinal.ToString());
+                    AddChild(node);
+                    levelNodes.Add(node);
+                }
+                
+                if(type == "Venue" || type == "Walls")
+                {
+                    category = type;
+                }
+                else
+                {
+                    category = feature.Properties["CATEGORY"].ToString();
+                }
 
-                    if(!materials.ContainsKey(category))
+                if(!materials.ContainsKey(category))
+                {
+                    Color color = new Color(
+                        Convert.ToSingle(random.NextDouble()),
+                        Convert.ToSingle(random.NextDouble()),
+                        Convert.ToSingle(random.NextDouble())
+                    );
+
+                    SpatialMaterial material = new SpatialMaterial();
+                    material.SetAlbedo(color);
+
+                    materials[category] = material;
+                }
+
+                if(category == "Venue")
+                {
+                    height = 0.20f;
+                }
+                else if(category == "Walkway")
+                {
+                    height = 0.25f;
+                }
+                else if(category == "Room")
+                {
+                    height = 1.14f;
+                }
+                else if(category == "Walls")
+                {
+                    height = 1.19f;
+                }
+                else
+                {
+                    height = 0.27f;
+                }
+
+                if(GetNode(ordinal.ToString()).GetNodeOrNull(category) == null)
+                {
+                    Node node = new Spatial();
+                    node.SetName(category);
+                    GetNode(ordinal.ToString()).AddChild(node);
+                }
+                
+                if(type != "Walls")
+                {
+                    List<FeatureObservable> fos = ProcessGeometry(feature.Geometry, height);
+                    foreach(FeatureObservable f in fos)
                     {
-                        Color color = new Color(
-                            Convert.ToSingle(random.NextDouble()),
-                            Convert.ToSingle(random.NextDouble()),
-                            Convert.ToSingle(random.NextDouble())
+                        f.EdittedPolygons.ForEach(
+                            delegate (Vector2[] polygon)
+                            {
+                                CSGPolygon mesh = new CSGPolygon();
+                                mesh.SetPolygon(polygon);
+                                mesh.SetRotationDegrees(new Vector3(90, 0, 90));
+                                mesh.SetMaterial(materials[category]);
+                                mesh.SetDepth(height);
+                                mesh.SetSmoothFaces(true);
+                                mesh.SetUseCollision(true);
+                                GetNode(ordinal.ToString()).GetNode(category).AddChild(mesh);
+
+                                //AddLine(polygon, height);
+                            }
+                        );
+                    }
+                }
+                else
+                {
+                    List<Vector2[]> polygonList = new List<Vector2[]>();
+
+                    for(int i = 0; i < (feature.Geometry as Polygon).Coordinates.Count; i++)
+                    {
+                        Vector2[] poly = System.Array.ConvertAll((feature.Geometry as Polygon).Coordinates[i].Coordinates.ToArray(), new Converter<IPosition, Vector2>( 
+                            delegate(IPosition p) 
+                                {
+                                    Vector3 v = vectorGenerator.FromLL(p);
+                                    
+                                    return new Vector2(v.x, v.z);
+                                }
+                            )
                         );
 
-                        SpatialMaterial material = new SpatialMaterial();
-                        material.SetAlbedo(color);
-
-                        materials[category] = material;
+                        polygonList.Add(poly);
                     }
-
-                    if(category == "Venue")
+                    if(feature.Properties["CATEGORY"].ToString() == "Room")
                     {
-                        height = 0.20f;
-                    }
-                    else if(category == "Walkway")
-                    {
-                        height = 0.25f;
-                    }
-                    else if(category == "Room")
-                    {
-                        height = 1.14f;
-                    }
-                    else if(category == "Walls")
-                    {
-                        height = 1.19f;
+                        height = 1.24f;
                     }
                     else
                     {
-                        height = 0.27f;
+                        height = 0.32f  ;
                     }
-                    
-                    if(type != "Walls")
-                    {
-                        List<FeatureObservable> fos = ProcessGeometry(feature.Geometry, height);
-                        foreach(FeatureObservable f in fos)
-                        {
-                            f.EdittedPolygons.ForEach(
-                                delegate (Vector2[] polygon)
+
+                        List<Vector2> csg1coords = new List<Vector2>();
+                        List<Vector2> csg2coords = new List<Vector2>();
+
+                        CSGPolygon cp1 = new CSGPolygon();
+                        CSGPolygon cp2 = new CSGPolygon();
+
+                        int g = 0;
+                        polygonList.ForEach(delegate (Vector2[] v) {
+                            foreach(Vector2 vec in v)
+                            {
+                                if(g == 0) 
                                 {
-                                    //MeshInstance mesh = ExtrudeMesh(polygon, height, materials[category], PrimitiveMesh.PrimitiveType.Triangles);
-                                    CSGPolygon mesh = new CSGPolygon();
-                                    mesh.SetPolygon(polygon);
-                                    mesh.SetRotationDegrees(new Vector3(90, 0, 90));
-                                    mesh.SetMaterial(materials[category]);
-                                    mesh.SetDepth(height);
-                                    AddChild(mesh);
-
-                                    AddLine(polygon, height);
+                                    csg1coords.Add(vec);
                                 }
-                            );
-                        }
-                    }
-                    else
-                    {
-                            List<Vector2[]> polygonList = new List<Vector2[]>();
-
-                            for(int i = 0; i < (feature.Geometry as Polygon).Coordinates.Count; i++)
-                            {
-                                Vector2[] poly = System.Array.ConvertAll((feature.Geometry as Polygon).Coordinates[i].Coordinates.ToArray(), new Converter<IPosition, Vector2>( 
-                                    delegate(IPosition p) 
-                                        {
-                                            Vector3 v = vectorGenerator.FromLL(p);
-                                            
-                                            return new Vector2(v.x, v.z);
-                                        }
-                                    )
-                                );
-
-                                polygonList.Add(poly);
+                                else
+                                {
+                                    csg2coords.Add(vec);
+                                }
                             }
-                            if(feature.Properties["CATEGORY"].ToString() == "Room")
-                            {
-                                height = 1.24f;
+                            g++;
+                        });
 
-                                List<Vector2> coords = new List<Vector2>();
-                                List<Vector2> csg1coords = new List<Vector2>();
-                                List<Vector2> csg2coords = new List<Vector2>();
+                        cp1.SetPolygon(csg1coords.ToArray());
+                        cp2.SetPolygon(csg2coords.ToArray());
+                        
+                        cp2.SetDepth(height);
+                        cp2.SetOperation(CSGShape.OperationEnum.Subtraction);
+                        cp1.SetDepth(height-0.01f);
+                        cp1.SetUseCollision(true);
 
-                                CSGPolygon cp1 = new CSGPolygon();
-                                CSGPolygon cp2 = new CSGPolygon();
+                        cp1.SetMaterial(wallMaterial);
+                        cp2.SetMaterial(wallMaterial);
 
-                                int g = 0;
-                                polygonList.ForEach(delegate (Vector2[] v) {
-                                    foreach(Vector2 vec in v)
-                                    {
-                                        if(g == 0) 
-                                        {
-                                            csg1coords.Add(vec);
-                                        }
-                                        else
-                                        {
-                                            csg2coords.Add(vec);
-                                        }
-                                    }
-                                    g++;
-                                });
+                        cp1.SetSmoothFaces(true);
+                        cp2.SetSmoothFaces(true);
 
-                                cp1.SetPolygon(csg1coords.ToArray());
-                                cp2.SetPolygon(csg2coords.ToArray());
-                                
-                                cp2.SetDepth(height);
-                                cp2.SetOperation(CSGShape.OperationEnum.Subtraction);
-                                cp1.SetDepth(height-0.01f);
+                        CSGCombiner csgc = new CSGCombiner();
 
-                                SpatialMaterial material = new SpatialMaterial();
-                                material.SetAlbedo(new Color(0.7f, 0.7f, 0.7f));
+                        csgc.AddChild(cp1);
+                        csgc.AddChild(cp2);
 
-                                cp1.SetMaterial(material);
-                                cp2.SetMaterial(material);
+                        csgc.SetRotationDegrees(new Vector3(90, 0, 90));
 
-                                CSGCombiner csgc = new CSGCombiner();
-
-                                //csgc.SetOperation(CSGShape.OperationEnum.Subtraction);
-
-                                csgc.AddChild(cp1);
-                                csgc.AddChild(cp2);
-
-                                csgc.SetRotationDegrees(new Vector3(90, 0, 90));
-
-                                AddChild(csgc);
-                            }
-                        }
+                        GetNode(ordinal.ToString()).GetNode("Walls").AddChild(csgc);
                     }
+                
             }
         );
     }
